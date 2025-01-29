@@ -35,6 +35,7 @@ type Graph struct {
 var db *sql.DB
 
 const (
+	// TODO: change to docker network
 	host     = "localhost"
 	port     = 5432
 	user     = "postgres"
@@ -42,7 +43,7 @@ const (
 	dbname   = "db"
 )
 
-func main() {
+func setupDB() {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
 		"password=%s dbname=%s sslmode=disable",
 		host, port, user, password, dbname)
@@ -58,20 +59,35 @@ func main() {
 	if err != nil {
 		log.Fatalf("Database connection error: %v", err)
 	}
+}
+
+func main() {
+	// TODO: uncomment me
+	// setupDB()
 
 	r := gin.Default()
 
+	r.GET("/ping", ping)
+
 	r.GET("/graph/:id", getGraphByID)
+
 	r.POST("/services", createService)
 	r.POST("/relations", createRelation)
+
 	r.GET("/services/:id", getServiceById)
 	r.GET("/relations/:id", getRelationById)
+
 	r.PUT("/services/:id", updateService)
 	r.PUT("/relations/:id", updateRelation)
+
 	r.DELETE("/services/:id", deleteService)
 	r.DELETE("/relations/:id", deleteRelation)
 
 	r.Run(":8080")
+}
+
+func ping(ctx *gin.Context) {
+	ctx.JSON(http.StatusOK, map[string]string{"response": "pong"})
 }
 
 func getGraphByID(c *gin.Context) {
@@ -226,7 +242,6 @@ func getServiceById(c *gin.Context) {
 	var service Service
 	err := db.QueryRow("SELECT id, graph_id, name, description FROM services WHERE id = $1", serviceID).
 		Scan(&service.ID, &service.GraphID, &service.Name, &service.Description)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
@@ -245,7 +260,6 @@ func getRelationById(c *gin.Context) {
 	var relation Relation
 	err := db.QueryRow("SELECT id, graph_id, name, description, from_service, to_service FROM relations WHERE id = $1", relationID).
 		Scan(&relation.ID, &relation.GraphID, &relation.Description, &relation.Description, &relation.FromService, &relation.ToService)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Relation not found"})
@@ -257,4 +271,3 @@ func getRelationById(c *gin.Context) {
 
 	c.JSON(http.StatusOK, relation)
 }
-
