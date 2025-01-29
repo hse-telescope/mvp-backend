@@ -67,7 +67,7 @@ func main() {
 
 	r := gin.Default()
 
-	r.GET("/ping", ping)
+	r.GET("/api/v1/ping", ping)
 
 	r.GET("/graph/:id", getGraphByID)
 
