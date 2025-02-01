@@ -8,3 +8,32 @@ services:
     hostname: mvp-backend
     ports:
       - '8080:8080'
+    depends_on:
+      mvp-db:
+        condition: service_healthy
+
+  mvp-db:
+    image: postgres:15.1
+    hostname: mvp-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: graphs
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - mvp-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d graphs" ]
+      interval: 5s
+      timeout: 5s
+      retries: 100
+      start_period: 10s
+
+volumes:
+  mvp-data:

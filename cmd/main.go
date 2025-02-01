@@ -83,19 +83,19 @@ func main() {
 
 	r.GET("/api/v1/ping", ping)
 
-	r.GET("/graph/:id", getGraphByID)
+	r.GET("/api/v1/graph/:id", getGraphByID)
 
-	r.POST("/services", createService)
-	r.POST("/relations", createRelation)
+	r.POST("/api/v1/services", createService)
+	r.POST("/api/v1/relations", createRelation)
 
-	r.GET("/services/:id", getServiceById)
-	r.GET("/relations/:id", getRelationById)
+	r.GET("/api/v1/services/:id", getServiceById)
+	r.GET("/api/v1/relations/:id", getRelationById)
 
-	r.PUT("/services/:id", updateService)
-	r.PUT("/relations/:id", updateRelation)
+	r.PUT("/api/v1/services/:id", updateService)
+	r.PUT("/api/v1/relations/:id", updateRelation)
 
-	r.DELETE("/services/:id", deleteService)
-	r.DELETE("/relations/:id", deleteRelation)
+	r.DELETE("/api/v1/services/:id", deleteService)
+	r.DELETE("/api/v1/relations/:id", deleteRelation)
 
 	r.Run(":8080")
 }
