@@ -3,11 +3,11 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hse-telescope/utils/db/psql"
 	_ "github.com/lib/pq"
 )
 
@@ -35,21 +35,27 @@ type Graph struct {
 var db *sql.DB
 
 const (
-	// TODO: change to docker network
-	host     = "localhost"
+	host     = "mvp-db"
 	port     = 5432
-	user     = "postgres"
-	password = "your-password"
-	dbname   = "db"
+	user     = "user"
+	password = "password"
+	dbname   = "graphs"
 )
 
 func setupDB() {
-	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
-		"password=%s dbname=%s sslmode=disable",
-		host, port, user, password, dbname)
+	dbConf := psql.DB{
+		Schema:         psql.PGDriver,
+		User:           "user",
+		Password:       "password",
+		IP:             "mvp-db",
+		Port:           5432,
+		DataBase:       "graphs",
+		SSL:            "disable",
+		MigrationsPath: "file://migrations",
+	}
 
 	var err error
-	db, err = sql.Open("postgres", psqlInfo)
+	db, err = sql.Open(psql.PGDriver, dbConf.GetDBURL())
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -59,11 +65,19 @@ func setupDB() {
 	if err != nil {
 		log.Fatalf("Database connection error: %v", err)
 	}
+
+	err = psql.MigrateDB(
+		db,
+		dbConf.MigrationsPath,
+		dbConf.Schema,
+	)
+	if err != nil {
+		log.Fatalf("Failed to migrate: %v", err)
+	}
 }
 
 func main() {
-	// TODO: uncomment me
-	// setupDB()
+	setupDB()
 
 	r := gin.Default()
 
