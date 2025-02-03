@@ -12,35 +12,33 @@ import (
 )
 
 type Service struct {
-	ID          string `json:"id"`
-	GraphID     string `jsom:"graph_id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	ID          int     `json:"id"`
+	GraphID     int     `json:"graph_id"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	X           float32 `json:"x"`
+	Y           float32 `json:"y"`
 }
 
 type Relation struct {
-	ID          string `json:"id"`
-	GraphID     string `jsom:"graph_id"`
+	ID          int    `json:"id"`
+	GraphID     int    `json:"graph_id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	FromService string `json:"from_service"`
-	ToService   string `json:"to_service"`
+	FromService int    `json:"from_service"`
+	ToService   int    `json:"to_service"`
 }
 
 type Graph struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID        int        `json:"id"`
+	Name      string     `json:"name"`
+	MaxNodeID int        `json:"max_node_id"`
+	MaxEdgeID int        `json:"max_edge_id"`
+	Services  []Service  `json:"services"`
+	Relations []Relation `json:"relations"`
 }
 
 var db *sql.DB
-
-const (
-	host     = "mvp-db"
-	port     = 5432
-	user     = "user"
-	password = "password"
-	dbname   = "graphs"
-)
 
 func setupDB() {
 	dbConf := psql.DB{
@@ -59,7 +57,6 @@ func setupDB() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
 
 	err = db.Ping()
 	if err != nil {
@@ -108,33 +105,33 @@ func getGraphByID(c *gin.Context) {
 	graphID := c.Param("id")
 
 	query := `
-		SELECT json_build_object(
-			'services', json_agg(
-				json_build_object(
+		SELECT jsonb_build_object(
+			'id', g.id,
+			'name', g.name,
+			'max_node_id', g.max_node_id,
+			'max_edge_id',  g.max_edge_id,
+			'services', COALESCE((
+				SELECT jsonb_agg(jsonb_build_object(
 					'id', s.id,
 					'name', s.name,
-					'description', s.description
-				)
-			),
-			'relations', json_agg(
-				json_build_object(
+					'description', s.description,
+					'x', s.x,
+					'y', s.y
+				)) FROM services s WHERE s.graph_id = g.id
+			), '[]'::jsonb),
+			'relations', COALESCE((
+				SELECT jsonb_agg(jsonb_build_object(
 					'id', r.id,
 					'name', r.name,
 					'description', r.description,
-					'from_service', sf.name,
-					'to_service', st.name
-				)
-			)
+					'from_service', r.from_service,
+					'to_service', r.to_service
+				)) FROM relations r WHERE r.graph_id = g.id
+			), '[]'::jsonb)
 		) AS graph
-		FROM services s
-		LEFT JOIN relations r
-			ON r.graph_id = s.graph_id
-		LEFT JOIN services sf
-			ON r.from_service_id = sf.id
-		LEFT JOIN services st
-			ON r.to_service_id = st.id
-		WHERE s.graph_id = $1
-		GROUP BY s.graph_id;
+		FROM graphs g
+		WHERE g.id = $1;
+
 	`
 
 	var graphJSON []byte
@@ -160,14 +157,19 @@ func createService(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	query := `INSERT INTO services (id, graph_id, name, description) VALUES ($1, $2, $3, $4)`
-	_, err := db.Exec(query, service.ID, service.GraphID, service.Name, service.Description)
+	query := `INSERT INTO services (id, graph_id, name, description, x, y) VALUES ($1, $2, $3, $4, $5, $6)`
+	_, err := db.Exec(query, service.ID, service.GraphID, service.Name, service.Description, service.X, service.Y)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create service"})
 		return
 	}
 
+	query = `UPDATE graphs SET max_node_id = GREATEST(max_node_id, $1) WHERE id = $2`
+	_, err = db.Exec(query, service.ID+1, 1)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed update max id"})
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Service created successfully"})
 }
 
@@ -184,7 +186,12 @@ func createRelation(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create relation"})
 		return
 	}
-
+	query = `UPDATE graphs SET max_edge_id = GREATEST(max_edge_id, $1) WHERE id = $2`
+	_, err = db.Exec(query, relation.ID+1, 1)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed update max id"})
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Relation created successfully"})
 }
 
@@ -196,8 +203,8 @@ func updateService(c *gin.Context) {
 		return
 	}
 
-	query := `UPDATE services SET name = $1, description = $2 WHERE id = $3`
-	_, err := db.Exec(query, service.Name, service.Description, serviceID)
+	query := `UPDATE services SET name = $1, description = $2, x = $3, y = $4 WHERE id = $5`
+	_, err := db.Exec(query, service.Name, service.Description, service.X, service.Y, serviceID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update service"})
 		return
