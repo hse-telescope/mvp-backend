@@ -9,4 +9,4 @@ WORKDIR /app
 COPY --from=builder /app/bin/mvp-backend ./mvp-backend
 COPY migrations migrations
 
-CMD ["./mvp-backend"]
+ENTRYPOINT ["./mvp-backend"]
